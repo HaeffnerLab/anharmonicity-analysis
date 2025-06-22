@@ -20,7 +20,7 @@ If you are simulating multiple electrodes in COMSOL, you can use the parametric 
 ![alt text](docs/figs/parametric_sweep.png)
 The parameter value is created using one-hot encodings, indicating separate 1V excitations for each electrode. The 1V value is chosen here as a convention, and this is needed for the package to identify the field created by each electrode. 
 
-### Exporting result 
+### Exporting results
 The result can be directly exported into a .csv file, with `Parameter layout` in the *Columns* format, as shown in the figure below.
 ![alt text](docs/figs/result_export.png)
 An example output file can be found in `example/output.csv`. Note that in this output file, the first 8 rows should be skipped if `pd.read_csv` is used to load the file. In addition, the parameteric sweep configuration is embedded in the header of the spreadsheet. Here, `Vr=1`, for example, is used as a flag in the code when loading data to correlate that data column to the electrode named `r`, and this is why a variable and electrode naming convention should be used for convenience.
