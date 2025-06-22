@@ -38,13 +38,13 @@ class Grid:
         
         
 class COMSOLGrid(Grid): 
-    def __init__(self, df, unit=1e-6,
+    def __init__(self, df, sim_unit=1e-6,
                  header_x='% x', header_y='y', header_z='z', 
                  **kwargs): 
         super().__init__()
-        self.x = np.array(df[header_x]) * unit
-        self.y = np.array(df[header_y]) * unit
-        self.z = np.array(df[header_z]) * unit
+        self.x = np.array(df[header_x]) * sim_unit
+        self.y = np.array(df[header_y]) * sim_unit
+        self.z = np.array(df[header_z]) * sim_unit
         self.x_step, self.y_step, self.z_step = self.initialize_resolution()
 
     def initialize_resolution(self):  

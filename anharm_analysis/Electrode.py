@@ -3,7 +3,7 @@ import numpy as np
 from .Grid import COMSOLGrid
 
 class SimulatedElectrode: 
-    def __init__(self, name, file, unit=1e-6): 
+    def __init__(self, name, file, sim_unit=1e-6): 
         self.V, self.Ex, self.Ey, self.Ez, self.sim_grid = [], [], [], [], [] 
 
     def load_from_file(self): 
@@ -32,10 +32,10 @@ class SimulatedElectrode:
 
     
 class COMSOLElectrode(SimulatedElectrode): 
-    def __init__(self, name, file, unit=1e-6, 
+    def __init__(self, name, file, sim_unit=1e-6, 
                  header_x='% x', header_y='y', header_z='z', **kwargs): 
         self.V, self.Ex, self.Ey, self.Ez, self.sim_grid = self.load_from_file(name, file, 
-                                                                               unit=unit, 
+                                                                               unit=sim_unit, 
                                                                                header_x=header_x, 
                                                                                header_y=header_y, 
                                                                                header_z=header_z, **kwargs) 
