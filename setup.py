@@ -9,7 +9,7 @@ from setuptools import setup
 description="Analyzing anharmonicity of traps for charged particles"
 
 setup(
-    name="esim",
+    name="anharm_analysis",
     version="1.0.0",
     description="Library for analyzing charged-particle trap anharmonicity",
     long_description=description,
@@ -26,7 +26,7 @@ setup(
         "matplotlib",
         'tqdm',
         # 'optuna',
-        'plotly',
+        # 'plotly',
         'scikit-learn',
         #'sphericart',
         'pyvista',
@@ -36,7 +36,7 @@ setup(
         'juliacall'
     ],
     package_data = {
-        "esim": ["utils/*.py"]
+        "anharm_analysis": ["*.py"]
     },
     setup_requires=[],
     classifiers=[
