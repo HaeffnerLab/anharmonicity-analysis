@@ -43,15 +43,39 @@ class COMSOLElectrode(SimulatedElectrode):
     def load_from_file(self, electrode, file, excitation_prefix='V', sim_prefix='esbe.', skiprows=8, 
                        unit=1e-6, header_x='% x', header_y='y', header_z='z', **kwargs): 
         df = pd.read_csv(file, skiprows=skiprows) 
-        all_headers = [i for i in df.keys() if f'{excitation_prefix}{electrode}=1' in i] 
-        V_headers = [i for i in all_headers if f'{sim_prefix}V' in i] 
-        Ex_headers = [i for i in all_headers if f'{sim_prefix}Ex' in i]
-        Ey_headers = [i for i in all_headers if f'{sim_prefix}Ey' in i] 
-        Ez_headers = [i for i in all_headers if f'{sim_prefix}Ez' in i] 
-        assert len(V_headers)==1, "Check output results or output headers, found 0 or 1+ potential data"
+        if electrode != 'default':
+            all_headers = [i for i in df.keys() if f'{excitation_prefix}{electrode}=1' in i] 
+            V_headers = [i for i in all_headers if f'{sim_prefix}V' in i] 
+            Ex_headers = [i for i in all_headers if f'{sim_prefix}Ex' in i]
+            Ey_headers = [i for i in all_headers if f'{sim_prefix}Ey' in i] 
+            Ez_headers = [i for i in all_headers if f'{sim_prefix}Ez' in i] 
+            assert len(V_headers)==1, "Check output results or output headers, found 0 or 1+ potential data"
+        else: 
+            V_headers = [i for i in df.keys() if f'{sim_prefix}V' in i] 
+            Ex_headers = [i for i in df.keys() if f'{sim_prefix}Ex' in i]
+            Ey_headers = [i for i in df.keys() if f'{sim_prefix}Ey' in i] 
+            Ez_headers = [i for i in df.keys() if f'{sim_prefix}Ez' in i] 
         V = np.array(df[V_headers[0]]) 
         Ex = np.array([]) if len(Ex_headers) != 1 else np.array(df[Ex_headers[0]]) 
         Ey = np.array([]) if len(Ey_headers) != 1 else np.array(df[Ey_headers[0]]) 
         Ez = np.array([]) if len(Ez_headers) != 1 else np.array(df[Ez_headers[0]]) 
         grid = COMSOLGrid(df, unit, header_x, header_y, header_z) 
         return V, Ex, Ey, Ez, grid
+    
+class ANSYSElectrode(SimulatedElectrode): 
+    def __init__(self, name, file, sim_unit=1e-6, 
+                 header_x='x', header_y='y', header_z='z', **kwargs): 
+    
+        self.V, self.sim_grid = self.load_from_file(name, file, 
+                                                    unit=sim_unit, 
+                                                    header_x=header_x, 
+                                                    header_y=header_y, 
+                                                    header_z=header_z, **kwargs) 
+
+    def load_from_file(self, name, file, skiprows=2, 
+                       unit=1e-6, header_x='x', header_y='y', header_z='z', header_V='V',
+                       **kwargs): 
+        df = pd.read_csv(f'{file}_{name}.fld', sep=r' ', skiprows=skiprows, names=['x', 'y', 'z', '_', 'V'])
+        V = np.array(df[header_x]), np.array(df[header_x]), np.array(df[header_x]), np.array(df[header_V])
+        grid = COMSOLGrid(df, unit, header_x, header_y, header_z) 
+        return V, grid

@@ -5,7 +5,7 @@ from .utils import get_r0_from_unit, get_Cj_fit, eval_spherical_harmonics, get_C
                    plot_all_potentials, plot_Mj, plot_V_DC, plot_potential_contours, \
                    plot_cutline_fits, compute_a, find_freq_shift
 from .Grid import COMSOLGrid 
-from .Electrode import COMSOLElectrode
+from .Electrode import COMSOLElectrode, ANSYSElectrode
                    
 
 class SimulatedTrap: 
@@ -31,18 +31,28 @@ class SimulatedTrap:
         return V_DC 
 
     def construct_V_total(self, C=0, Ey=0, Ez=0, Ex=0, 
-                          U3=0, U4=0, U2=-1, U5=0, U1=0, **kwargs): 
-        V_DC = self.get_electrode_voltages(C=C, Ey=Ey, Ez=Ez, Ex=Ex, 
-                                           U3=U3, U4=U4, U2=U2, U5=U5, U1=U1, **kwargs)
-        V_total = np.dot(self.V_matrix_ROI, V_DC) 
-        self.V_DC = V_DC
-        self.V_total = V_total 
-        self.constructed_V_total = True
+                          U3=0, U4=0, U2=-1, U5=0, U1=0, original = False, **kwargs): 
+        if original:
+            V_DC = np.ones(len(self.electrodes))
+            V_total = np.dot(self.V_matrix_ROI, V_DC) 
+            self.V_DC = V_DC
+            self.V_total = V_total 
+            self.constructed_V_total = True
+        else:
+            V_DC = self.get_electrode_voltages(C=C, Ey=Ey, Ez=Ez, Ex=Ex, 
+                                            U3=U3, U4=U4, U2=U2, U5=U5, U1=U1, **kwargs)
+            V_total = np.dot(self.V_matrix_ROI, V_DC) 
+            self.V_DC = V_DC
+            self.V_total = V_total 
+            self.constructed_V_total = True
 
     def expand_spherical_harmonics(self, order=2): 
         assert self.constructed_V_total, "Construct the desired total potential" + \
                                          "using self.construct_V_total(...) first"
         x, y, z = self.ROI_grid.get_xyz_array() 
+        x = x - self.sim_grid.x0
+        y = y - self.sim_grid.y0
+        z = z - self.sim_grid.z0
         self.Cj_fit = get_Cj_fit(self.V_total, x, y, z, order=order)
         self.V_fit = eval_spherical_harmonics(self.Cj_fit, x, y, z)
 
@@ -94,12 +104,27 @@ class SimulatedTrap:
         plt.show()
 
 class COMSOLTrap(SimulatedTrap): 
-    def __init__(self, result_file, electrodes, unit='um', L_ROI=50, skiprows=8, **kwargs): 
+    def __init__(self, result_file, electrodes, unit='um', L_ROI=float('inf'), skiprows=8, **kwargs): 
+        super().__init__(result_file, electrodes, unit, L_ROI)
+        self.sim_grid = COMSOLGrid(pd.read_csv(result_file, skiprows=skiprows), **kwargs)  # Grid used in COMSOL simulation
+        self.sim_grid.scale_xyz(self.r0) 
+        self.ROI_grid = self.sim_grid.gen_subcube(L_cube=L_ROI) 
+        if len(self.electrodes) == 0:
+            self.electrodes['default'] = COMSOLElectrode('default', result_file, **kwargs)
+        else:
+            for ei in electrodes: 
+                self.electrodes[ei] = COMSOLElectrode(ei, result_file, **kwargs) 
+                self.electrodes[ei].set_sim_grid(self.sim_grid)
+        self.V_matrix_ROI = self.get_V_matrix_ROI() 
+
+class ANSYSTrap(SimulatedTrap): 
+    def __init__(self, result_file, electrodes, unit='um', L_ROI=float('inf'), skiprows=2, **kwargs): 
         super().__init__(result_file, electrodes, unit, L_ROI)
         self.sim_grid = COMSOLGrid(pd.read_csv(result_file, skiprows=skiprows), **kwargs)  # Grid used in COMSOL simulation
         self.sim_grid.scale_xyz(self.r0) 
         self.ROI_grid = self.sim_grid.gen_subcube(L_cube=L_ROI) 
         for ei in electrodes: 
-            self.electrodes[ei] = COMSOLElectrode(ei, result_file, **kwargs) 
+            self.electrodes[ei] = ANSYSElectrode(ei, result_file, **kwargs) 
             self.electrodes[ei].set_sim_grid(self.sim_grid)
+        
         self.V_matrix_ROI = self.get_V_matrix_ROI() 
