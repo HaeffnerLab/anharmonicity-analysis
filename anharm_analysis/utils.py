@@ -283,6 +283,15 @@ def eval_spherical_harmonics(C, x, y, z):
     result = jl.broadcast(fastf, x, y, z) 
     return np.array(result)
 
+def display_spherical_harmonics_term(C=0, Ey=0, Ez=0, Ex=0, U3=0, U4=0, U2=0, U5=0, U1=0,**kwargs): 
+    C_list = get_Cj_list(C, Ey, Ez, Ex, U3, U4, U2, U5, U1, **kwargs)
+    C2 = jl.Array(C_list) #[float(c) for c in C]
+    jl.seval(f"C = {C2}")
+    jl.seval("c = SphericalHarmonicCoefficients(C)")
+    jl.seval("@polyvar x y z")
+    return jl.seval("sphericalHarmonicsExpansion(c, x, y, z)")
+
+
 def eval_spherical_harmonics_by_term(x, y, z, order=2): 
     N = (order+1)**2 
     V_list = []
