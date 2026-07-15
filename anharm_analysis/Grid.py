@@ -67,8 +67,11 @@ class COMSOLGrid(Grid):
         x, y, z, _ = self.get_subgrid_xyzi(xmin, xmax, ymin, ymax, zmin, zmax) 
         return Grid(x, y, z)
 
-    def gen_subcube(self, L_cube): 
-        x0, y0, z0 = self.get_grid_center() 
+    def gen_subcube(self, L_cube, center=None): 
+        if center is None:
+            x0, y0, z0 = self.get_grid_center()
+        else:
+            x0, y0, z0 = center
         x, y, z, _ = self.get_subgrid_xyzi(x0-L_cube/2, x0+L_cube/2, 
                                            y0-L_cube/2, y0+L_cube/2, 
                                            z0-L_cube/2, z0+L_cube/2)

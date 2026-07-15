@@ -3,3 +3,6 @@
 */__pycache__
 .setup_log
 *.egg-info
+example/cfile_merged_electrodes_izze.csv
+example/cfile_fused_DC_0p025in_FEP_Shield_Manual_0.3_Mesh_100um_0.5um_L_ROI_100um.csv
+example/cfile_DC_0p025in_FEP_Shield_Manual_0.3_Mesh_100um_0.5um_L_ROI_100um.csv

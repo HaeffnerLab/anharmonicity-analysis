@@ -12,6 +12,29 @@ if not os.path.exists("../.setup_log"):
     
 jl.seval("using SphericalHarmonicExpansions") 
 
+def read_cfile_as_matrix(file_path, row=None, column=None):
+    """
+    Reads a CSV file and converts it into a NumPy matrix reordered by 
+    user-defined row and column sequences.
+    """
+    # Load the CSV, setting the first column (electrode names) as the index
+    df = pd.read_csv(file_path, index_col=0)
+    
+    # 1. Handle and reorder Columns
+    if column is not None:
+        # Filter out empty string elements (placeholders for the index column)
+        valid_cols = [c for c in column if c != '' and c in df.columns]
+        df = df[valid_cols]
+        
+    # 2. Handle and reorder Rows
+    if row is not None:
+        # Filter out empty string elements and only include rows present in the file
+        valid_rows = [r for r in row if r != '' and r in df.index]
+        df = df.reindex(valid_rows)
+        
+    # Convert the cleaned, ordered DataFrame to a pure NumPy matrix
+    return df.values
+
 
 def big_plt_font(): 
     plt.rcParams.update({'font.size': 14,
@@ -205,6 +228,86 @@ def plot_potential_contours(V, x, y, z, unit='um'):
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
 
+    cbar = fig.colorbar(contour, ax=axes.ravel().tolist(), orientation='vertical')
+    cbar.set_label('Potential (V)')
+
+    plt.show()
+
+
+def plot_potential_contours_slices(V, x, y, z, unit='um', slices=None, tolerance=None):
+    """
+    Plot clean, continuous contour plots of V in the xy, yz, and xz planes
+    by properly slicing the 3D data.
+
+    Parameters:
+        V (ndarray): 1D array of potential values.
+        x, y, z (ndarray): 1D coordinate arrays, same shape as V.
+        slices (dict): Optional. Specify the slice coordinate, e.g., {'z': 0.0, 'x': 0.0, 'y': 0.0}.
+                    Defaults to the median of each axis.
+        tolerance (dict): Optional. Max distance from the slice plane to include data, e.g., {'z': 0.1}.
+                        Defaults to 5% of each coordinate's range.
+    """
+    assert V.ndim == x.ndim == y.ndim == z.ndim == 1, "All inputs must be 1D arrays"
+    assert len(V) == len(x) == len(y) == len(z), "All arrays must be the same length"
+
+    grid_res = 100
+    cmap = 'seismic'
+    
+    # 1. Determine default slice positions (median/center of your data) if not provided
+    if slices is None:
+        slices = {
+            'z': np.median(z),
+            'x': np.median(x),
+            'y': np.median(y)
+        }
+        
+    # 2. Determine default tolerances (thickness of the slice window)
+    if tolerance is None:
+        tolerance = {
+            'z': (max(z) - min(z)) * 0.05,
+            'x': (max(x) - min(x)) * 0.05,
+            'y': (max(y) - min(y)) * 0.05
+        }
+
+    fig, axes = plt.subplots(1, 3, figsize=(18, 5), constrained_layout=True)
+
+    # Define planes: (label, coord1, coord2, out-of-plane_coord, slice_val, tol, labels...)
+    planes = [
+        ('xy', x, y, z, slices['z'], tolerance['z'], f'x ({unit})', f'y ({unit})', f'z ≈ {slices["z"]:.2f}'),
+        ('yz', y, z, x, slices['x'], tolerance['x'], f'y ({unit})', f'z ({unit})', f'x ≈ {slices["x"]:.2f}'),
+        ('xz', x, z, y, slices['y'], tolerance['y'], f'x ({unit})', f'z ({unit})', f'y ≈ {slices["y"]:.2f}'),
+    ]
+
+    for ax, (label, c1, c2, c3, slice_val, tol, xlabel, ylabel, slice_label) in zip(axes, planes):
+        # Filter data to only keep points very close to our target 2D slice plane
+        mask = np.abs(c3 - slice_val) <= tol
+        
+        if np.sum(mask) < 10:
+            ax.text(0.5, 0.5, f"No data within slice window\n({slice_label})", 
+                    ha='center', va='center', transform=ax.transAxes)
+            ax.set_title(f'{label}-plane')
+            continue
+
+        c1_sliced = c1[mask]
+        c2_sliced = c2[mask]
+        V_sliced = V[mask]
+
+        # Generate the regular grid
+        xi = np.linspace(min(c1_sliced), max(c1_sliced), grid_res)
+        yi = np.linspace(min(c2_sliced), max(c2_sliced), grid_res)
+        X, Y = np.meshgrid(xi, yi)
+        
+        points = np.column_stack((c1_sliced, c2_sliced))
+        
+        # 'cubic' interpolation provides much smoother, continuous contours than 'linear'
+        Z = griddata(points, V_sliced, (X, Y), method='cubic')
+
+        contour = ax.contourf(X, Y, Z, levels=50, cmap=cmap)
+        ax.set_title(f'{label}-plane at {slice_label}')
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel(ylabel)
+
+    # Create a clean single colorbar
     cbar = fig.colorbar(contour, ax=axes.ravel().tolist(), orientation='vertical')
     cbar.set_label('Potential (V)')
 
