@@ -67,21 +67,29 @@ class COMSOLGrid(Grid):
         x, y, z, _ = self.get_subgrid_xyzi(xmin, xmax, ymin, ymax, zmin, zmax) 
         return Grid(x, y, z)
 
-    def gen_subcube(self, L_cube, center=None): 
+    def gen_subcube(self, L_cube, center=None):
         if center is None:
             x0, y0, z0 = self.get_grid_center()
         else:
             x0, y0, z0 = center
-        x, y, z, _ = self.get_subgrid_xyzi(x0-L_cube/2, x0+L_cube/2, 
-                                           y0-L_cube/2, y0+L_cube/2, 
+        x, y, z, _ = self.get_subgrid_xyzi(x0-L_cube/2, x0+L_cube/2,
+                                           y0-L_cube/2, y0+L_cube/2,
                                            z0-L_cube/2, z0+L_cube/2)
-        return CubeGrid(x, y, z, L_cube)
-            
+        # Record the exact center used to carve out this subcube so that
+        # get_grid_center() below returns it verbatim instead of
+        # recomputing an approximate center from the (already narrowed)
+        # subcube points, which can select a different number of points
+        # than this query when reused (e.g. in get_V_in_ROI).
+        return CubeGrid(x, y, z, L_cube, center=(x0, y0, z0))
 
-class CubeGrid(Grid): 
-    def __init__(self, x, y, z, L_cube): 
-        super().__init__(x, y, z) 
+
+class CubeGrid(Grid):
+    def __init__(self, x, y, z, L_cube, center=None):
+        super().__init__(x, y, z)
         self.L_cube = L_cube
+        if center is not None:
+            self.x0, self.y0, self.z0 = center
+            self.has_grid_center = True
     
 class CustomizedGrid(Grid): 
     def __init__(self, xmin, xmax, xstep, ymin, ymax, ystep, zmin, zmax, zstep): 

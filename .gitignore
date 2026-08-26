@@ -6,3 +6,13 @@
 example/cfile_merged_electrodes_izze.csv
 example/cfile_fused_DC_0p025in_FEP_Shield_Manual_0.3_Mesh_100um_0.5um_L_ROI_100um.csv
 example/cfile_DC_0p025in_FEP_Shield_Manual_0.3_Mesh_100um_0.5um_L_ROI_100um.csv
+example/cfile_coarse.csv
+example/cfile_coarser.csv
+example/cfile_glass_trap_xy_pm150um_z_pm50um_grid_1um_mesh_scale_0p1.csv
+example/cfile_from_matrix.csv
+example/cfile.csv
+example/example_rhishi.ipynb
+example/example_CoarserData.ipynb
+RingAnalysis.ipynb
+
+example/test_Cfile.csv

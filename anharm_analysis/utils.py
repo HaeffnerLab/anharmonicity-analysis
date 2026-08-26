@@ -234,7 +234,86 @@ def plot_potential_contours(V, x, y, z, unit='um'):
     plt.show()
 
 
-def plot_potential_contours_slices(V, x, y, z, unit='um', slices=None, tolerance=None):
+def plot_potential_contour_slice(V, x, y, z, axis='z', value=None, unit='um', plot_unit=None,
+                                  ax=None, cmap='seismic', levels=50):
+    """
+    Plot a single cross-section of V, using only the data points that lie
+    exactly on one grid plane perpendicular to `axis` (nearest to `value`).
+
+    Unlike plot_potential_contours_slices, this does not pool a window of
+    points spanning a range of the out-of-plane coordinate, so it avoids
+    mixing together potential values from different planes when V varies
+    quickly along that axis (which otherwise shows up as speckle/noise).
+
+    Parameters:
+        V (ndarray): 1D array of potential values.
+        x, y, z (ndarray): 1D coordinate arrays, same shape as V.
+        axis ('x'|'y'|'z'): the axis to slice along (held fixed).
+        value (float): coordinate value (in `unit`) to slice at; snaps to the
+            nearest value actually present on the grid. Defaults to the
+            median of that axis.
+        unit, plot_unit: as in plot_potential_contours_slices.
+        ax: optional matplotlib Axes to draw into; a new figure is made if None.
+    """
+    assert V.ndim == x.ndim == y.ndim == z.ndim == 1, "All inputs must be 1D arrays"
+    assert len(V) == len(x) == len(y) == len(z), "All arrays must be the same length"
+    assert axis in ('x', 'y', 'z'), "axis must be 'x', 'y', or 'z'"
+    if plot_unit is None:
+        plot_unit = unit
+    unit_length_SI = get_r0_from_unit(unit)
+    plot_unit_length_SI = get_r0_from_unit(plot_unit)
+    scale_ratio = unit_length_SI / plot_unit_length_SI
+    x = scale_ratio * x
+    y = scale_ratio * y
+    z = scale_ratio * z
+
+    coords = {'x': x, 'y': y, 'z': z}
+    labels = {'x': f'x ({plot_unit})', 'y': f'y ({plot_unit})', 'z': f'z ({plot_unit})'}
+    out_coord = coords[axis]
+    in_axes = [a for a in ('x', 'y', 'z') if a != axis]
+
+    if value is None:
+        value = np.median(out_coord)
+
+    # Snap to the nearest value actually present on the grid, then select
+    # only the points on that exact plane (structured-grid data means every
+    # point on this plane shares this exact out-of-plane coordinate).
+    unique_vals = np.unique(out_coord)
+    slice_val = unique_vals[np.argmin(np.abs(unique_vals - value))]
+    mask = out_coord == slice_val
+
+    c1_name, c2_name = in_axes
+    c1 = coords[c1_name][mask]
+    c2 = coords[c2_name][mask]
+    V_sliced = V[mask]
+
+    # The masked points form a regular (structured) grid in (c1, c2), so
+    # pivot directly into a 2D array instead of interpolating with griddata.
+    c1_vals = np.unique(c1)
+    c2_vals = np.unique(c2)
+    Z = np.full((len(c2_vals), len(c1_vals)), np.nan)
+    i1 = np.searchsorted(c1_vals, c1)
+    i2 = np.searchsorted(c2_vals, c2)
+    Z[i2, i1] = V_sliced
+
+    made_fig = ax is None
+    if made_fig:
+        fig, ax = plt.subplots(figsize=(6, 5), constrained_layout=True)
+
+    contour = ax.contourf(c1_vals, c2_vals, Z, levels=levels, cmap=cmap)
+    ax.set_title(f'{c1_name}{c2_name}-plane at {axis} = {slice_val:.3g}')
+    ax.set_xlabel(labels[c1_name])
+    ax.set_ylabel(labels[c2_name])
+
+    if made_fig:
+        cbar = fig.colorbar(contour, ax=ax)
+        cbar.set_label('Potential (V)')
+        plt.show()
+
+    return contour
+
+
+def plot_potential_contours_slices(V, x, y, z, unit='um', plot_unit=None, slices=None, tolerance=None):
     """
     Plot clean, continuous contour plots of V in the xy, yz, and xz planes
     by properly slicing the 3D data.
@@ -249,7 +328,14 @@ def plot_potential_contours_slices(V, x, y, z, unit='um', slices=None, tolerance
     """
     assert V.ndim == x.ndim == y.ndim == z.ndim == 1, "All inputs must be 1D arrays"
     assert len(V) == len(x) == len(y) == len(z), "All arrays must be the same length"
-
+    if plot_unit is None:
+        plot_unit = unit
+    unit_length_SI = get_r0_from_unit(unit)
+    plot_unit_length_SI = get_r0_from_unit(plot_unit)
+    scale_ratio = unit_length_SI/plot_unit_length_SI
+    x = scale_ratio * x
+    y = scale_ratio * y
+    z = scale_ratio * z
     grid_res = 100
     cmap = 'seismic'
     
@@ -273,9 +359,9 @@ def plot_potential_contours_slices(V, x, y, z, unit='um', slices=None, tolerance
 
     # Define planes: (label, coord1, coord2, out-of-plane_coord, slice_val, tol, labels...)
     planes = [
-        ('xy', x, y, z, slices['z'], tolerance['z'], f'x ({unit})', f'y ({unit})', f'z ≈ {slices["z"]:.2f}'),
-        ('yz', y, z, x, slices['x'], tolerance['x'], f'y ({unit})', f'z ({unit})', f'x ≈ {slices["x"]:.2f}'),
-        ('xz', x, z, y, slices['y'], tolerance['y'], f'x ({unit})', f'z ({unit})', f'y ≈ {slices["y"]:.2f}'),
+        ('xy', x, y, z, slices['z'], tolerance['z'], f'x ({plot_unit})', f'y ({plot_unit})', f'z ≈ {slices["z"]:.2f}'),
+        ('yz', y, z, x, slices['x'], tolerance['x'], f'y ({plot_unit})', f'z ({plot_unit})', f'x ≈ {slices["x"]:.2f}'),
+        ('xz', x, z, y, slices['y'], tolerance['y'], f'x ({plot_unit})', f'z ({plot_unit})', f'y ≈ {slices["y"]:.2f}'),
     ]
 
     for ax, (label, c1, c2, c3, slice_val, tol, xlabel, ylabel, slice_label) in zip(axes, planes):

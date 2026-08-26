@@ -4,7 +4,8 @@ import matplotlib.pyplot as plt
 import csv
 from .utils import eval_spherical_harmonics_by_term, get_r0_from_unit, get_Cj_fit, eval_spherical_harmonics, get_Cj_list, \
                    plot_all_potentials, plot_Mj, plot_V_DC, plot_potential_contours, \
-                   plot_cutline_fits, compute_a, find_freq_shift, plot_potential_contours_slices
+                   plot_cutline_fits, compute_a, find_freq_shift, plot_potential_contours_slices, \
+                   plot_potential_contour_slice
 from .Grid import COMSOLGrid 
 from .Electrode import COMSOLElectrode, ANSYSElectrode, COMSOLElectrodeRF, COMSOLElectrodeAdvanced
                    
@@ -169,13 +170,18 @@ class SimulatedTrap:
         x, y, z = self.ROI_grid.get_xyz_array() 
         plot_potential_contours(self.V_total, x, y, z)
 
-    def plot_potential_contours_slices(self):  
-        x, y, z = self.ROI_grid.get_xyz_array() 
-        plot_potential_contours_slices(self.V_total, x, y, z, unit=self.unit)
+    def plot_potential_contours_slices(self,plot_unit = None):
+        x, y, z = self.ROI_grid.get_xyz_array()
+        plot_potential_contours_slices(self.V_total, x, y, z, unit=self.unit, plot_unit = plot_unit)
 
-    def plot_potential_contours_full(self):
+    def plot_potential_contour_slice(self, axis='z', value=None, plot_unit=None, ax=None):
+        x, y, z = self.ROI_grid.get_xyz_array()
+        return plot_potential_contour_slice(self.V_total, x, y, z, axis=axis, value=value,
+                                             unit=self.unit, plot_unit=plot_unit, ax=ax)
+
+    def plot_potential_contours_full(self,plot_unit = None):
         x, y, z = self.sim_grid.get_xyz_array()
-        plot_potential_contours_slices(self.V_total_full, x, y, z, unit=self.unit)
+        plot_potential_contours_slices(self.V_total_full, x, y, z, unit=self.unit, plot_unit = plot_unit)
 
     def plot_cutline_fits(self):
         x, y, z = self.ROI_grid.get_xyz_array()
@@ -204,9 +210,18 @@ class SimulatedTrap:
         ax.legend()
         plt.tight_layout()
         plt.show()
-    def get_RF_null_pos(self):
+    def get_RF_null_pos(self, axes=('x', 'y', 'z')):
+      # `axes` controls which directions get rebased to the argmin RF-null
+      # position. Directions left out fall back to the regular geometric
+      # center of self.sim_grid instead -- useful e.g. for a linear trap
+      # where the numerical RF null along the axial direction is just a
+      # meshing/boundary artifact rather than a physical feature.
       idx = np.argmin(np.abs(self.RF_field.Ex)**2 + np.abs(self.RF_field.Ey)**2 + np.abs(self.RF_field.Ez)**2)
-      self.RF_x0, self.RF_y0, self.RF_z0 = self.sim_grid_RF.x[idx], self.sim_grid_RF.y[idx], self.sim_grid_RF.z[idx]
+      null_x, null_y, null_z = self.sim_grid_RF.x[idx], self.sim_grid_RF.y[idx], self.sim_grid_RF.z[idx]
+      x0, y0, z0 = self.sim_grid.get_grid_center()
+      self.RF_x0 = null_x if 'x' in axes else x0
+      self.RF_y0 = null_y if 'y' in axes else y0
+      self.RF_z0 = null_z if 'z' in axes else z0
 
     def get_cfile(self, output_file, fused_electrodes = None):
         
@@ -370,26 +385,31 @@ class COMSOLTrap(SimulatedTrap):
         self.V_matrix_ROI = self.get_V_matrix_ROI() 
 
 class COMSOLTrapAdvanced(SimulatedTrap):
-    def __init__(self, result_file, electrodes, quantities = ['V', 'Ex', 'Ey', 'Ez'], unit='um', L_ROI=float('inf'), skiprows=8, RF_file = None, **kwargs): 
+    def __init__(self, result_file, electrodes, quantities = ['V', 'Ex', 'Ey', 'Ez'], unit='um', L_ROI=float('inf'), skiprows=8, sep=None, RF_file = None, RF_null_axes=('x', 'y', 'z'), **kwargs):
         super().__init__(result_file, electrodes, unit, L_ROI)
-        self.sim_grid = COMSOLGrid(pd.read_csv(result_file, skiprows=skiprows), **kwargs)  # Grid used in COMSOL simulation
-        self.sim_grid.scale_xyz(self.r0) 
+        # Read the (potentially large) result file exactly once and share the
+        # parsed DataFrame with every electrode below, instead of having each
+        # electrode independently re-parse the same file from disk.
+        result_df = pd.read_csv(result_file, skiprows=skiprows, sep = sep)
+        self.sim_grid = COMSOLGrid(result_df, **kwargs)  # Grid used in COMSOL simulation
+        self.sim_grid.scale_xyz(self.r0)
         self.RF_file = RF_file
         if RF_file is not None:
-            self.sim_grid_RF= COMSOLGrid(pd.read_csv(RF_file, skiprows=skiprows), **kwargs)
+            rf_df = pd.read_csv(RF_file, skiprows=skiprows, sep = sep)
+            self.sim_grid_RF= COMSOLGrid(rf_df, **kwargs)
             self.sim_grid_RF.scale_xyz(self.r0)
-            self.RF_field = COMSOLElectrodeRF(RF_file, quantities=['Ex', 'Ey', 'Ez'], **kwargs)
-            self.get_RF_null_pos()
+            self.RF_field = COMSOLElectrodeRF(RF_file, quantities=['Ex', 'Ey', 'Ez'], sep = sep, df = rf_df, **kwargs)
+            self.get_RF_null_pos(axes=RF_null_axes)
             self.ROI_grid = self.sim_grid.gen_subcube(L_cube=L_ROI, center=(self.RF_x0, self.RF_y0, self.RF_z0))
         else:
-            self.ROI_grid = self.sim_grid.gen_subcube(L_cube=L_ROI) 
+            self.ROI_grid = self.sim_grid.gen_subcube(L_cube=L_ROI)
         if len(electrodes) == 0:
-            self.electrodes['default'] = COMSOLElectrodeAdvanced('default', result_file, **kwargs)
+            self.electrodes['default'] = COMSOLElectrodeAdvanced('default', result_file, sep = sep, df = result_df, **kwargs)
         else:
-            for ei in electrodes: 
-                self.electrodes[ei] = COMSOLElectrodeAdvanced(ei, result_file, electrode_list = electrodes, quantities = quantities, **kwargs) 
+            for ei in electrodes:
+                self.electrodes[ei] = COMSOLElectrodeAdvanced(ei, result_file, electrode_list = electrodes, quantities = quantities, sep = sep, df = result_df, **kwargs)
                 self.electrodes[ei].set_sim_grid(self.sim_grid)
-        self.V_matrix_ROI = self.get_V_matrix_ROI() 
+        self.V_matrix_ROI = self.get_V_matrix_ROI()
         self.V_matrix = self.get_V_matrix()
         
     

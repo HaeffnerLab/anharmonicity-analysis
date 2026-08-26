@@ -73,23 +73,32 @@ class COMSOLElectrode(SimulatedElectrode):
         Ez = np.array([]) if len(Ez_headers) != 1 else np.array(df[Ez_headers[0]]) 
         grid = COMSOLGrid(df, unit, header_x, header_y, header_z) 
         return V, Ex, Ey, Ez, grid
-class COMSOLElectrodeAdvanced(SimulatedElectrode): 
-    def __init__(self, name, file, sim_unit=1e-6, 
-                 header_x='% x', header_y='y', header_z='z', electrode_list=None, quantities = ['V', 'Ex', 'Ey', 'Ez'], **kwargs): 
+class COMSOLElectrodeAdvanced(SimulatedElectrode):
+    def __init__(self, name, file, sim_unit=1e-6,
+                 header_x='% x', header_y='y', header_z='z', electrode_list=None, quantities = ['V', 'Ex', 'Ey', 'Ez'], sep = None, df = None, **kwargs):
         self.electrode_list = electrode_list
         self.quantities = quantities
-        self.V, self.Ex, self.Ey, self.Ez, self.sim_grid = self.load_from_file(name, file, 
-                                                                               unit=sim_unit, 
-                                                                               header_x=header_x, 
-                                                                               header_y=header_y, 
-                                                                               header_z=header_z, **kwargs) 
-    # Change the name based search for each electrode to a robust way by index. Now the electrode list will determine the order of the electrodes, so you need to make sure it matches the order of the electrodes in the COMSOL output file. 
-    def load_from_file(self, electrode, file, excitation_prefix='V', sim_prefix='', skiprows=8, 
-                       unit=1e-6, header_x='% x', header_y='y', header_z='z', **kwargs): 
-    
+        self.V, self.Ex, self.Ey, self.Ez, self.sim_grid = self.load_from_file(name, file,
+                                                                               unit=sim_unit,
+                                                                               header_x=header_x,
+                                                                               header_y=header_y,
+                                                                               header_z=header_z,
+                                                                               sep = sep,
+                                                                               df = df,
+                                                                               **kwargs)
+    # Change the name based search for each electrode to a robust way by index. Now the electrode list will determine the order of the electrodes, so you need to make sure it matches the order of the electrodes in the COMSOL output file.
+    def load_from_file(self, electrode, file, excitation_prefix='V', sim_prefix='', skiprows=8,
+                       unit=1e-6, header_x='% x', header_y='y', header_z='z', sep = None, df = None, **kwargs):
+
         # Read CSV. Note: we don't use comment='%' because the header line itself starts with '% x'
-        df = pd.read_csv(file, skiprows=skiprows) 
-        
+        # A caller (e.g. COMSOLTrapAdvanced, sweeping over many electrodes on
+        # the same file) can pass in an already-parsed DataFrame to avoid
+        # re-reading and re-parsing the same file from disk for every electrode.
+        if df is None:
+            df = pd.read_csv(file, skiprows=skiprows, sep = sep)
+        else:
+            df = df.copy()
+
         # 1. Clean up coordinate headers (COMSOL leaves a '% ' in front of x)
         df.columns = [col.strip() for col in df.columns]
         
@@ -131,29 +140,36 @@ class COMSOLElectrodeAdvanced(SimulatedElectrode):
         grid = COMSOLGrid(df, unit, header_x.strip(), header_y.strip(), header_z.strip()) 
         return V, Ex, Ey, Ez, grid
 
-class COMSOLElectrodeRF(SimulatedElectrode): 
-    def __init__(self, file, sim_unit=1e-6, 
-                 header_x='% x', header_y='y', header_z='z', quantities=None, **kwargs): 
-        
+class COMSOLElectrodeRF(SimulatedElectrode):
+    def __init__(self, file, sim_unit=1e-6,
+                 header_x='% x', header_y='y', header_z='z', quantities=None, sep = None, df = None, **kwargs):
+
         # Default to exactly 3 quantities for the RF fields
         self.quantities = quantities if quantities is not None else ['Ex', 'Ey', 'Ez']
-        
+
         # Load from file using simple positional mapping
         self.Ex, self.Ey, self.Ez, self.sim_grid = self.load_from_file(
-            file, 
-            unit=sim_unit, 
-            header_x=header_x, 
-            header_y=header_y, 
-            header_z=header_z, 
+            file,
+            unit=sim_unit,
+            header_x=header_x,
+            header_y=header_y,
+            header_z=header_z,
+            sep=sep,
+            df=df,
             **kwargs
-        ) 
+        )
 
-    def load_from_file(self, file, skiprows=8, unit=1e-6, 
-                       header_x='% x', header_y='y', header_z='z', **kwargs): 
-    
+    def load_from_file(self, file, skiprows=8, unit=1e-6,
+                       header_x='% x', header_y='y', header_z='z', sep = None, df = None, **kwargs):
+
         # Read CSV. We don't use comment='%' because the header line starts with '% x'
-        df = pd.read_csv(file, skiprows=skiprows) 
-        
+        # A caller that already parsed this file (e.g. to build sim_grid_RF)
+        # can pass the DataFrame in directly to avoid reading it twice.
+        if df is None:
+            df = pd.read_csv(file, skiprows=skiprows, sep = sep)
+        else:
+            df = df.copy()
+
         # 1. Clean up coordinate headers (COMSOL leaves a '% ' in front of x)
         df.columns = [col.strip() for col in df.columns]
         
